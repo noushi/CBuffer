@@ -1,8 +1,14 @@
 require 'helper'
 
+class TestableCBuffer < CBuffer
+    def content
+      @buffer
+    end
+end
+
 class TestCBuffer < Test::Unit::TestCase
   def test_simple
-    b = CBuffer.new(7)
+    b = TestableCBuffer.new(7)
     assert b.empty?
     b.put "one"
     b.put "two"
@@ -27,7 +33,7 @@ class TestCBuffer < Test::Unit::TestCase
   end
 
   def test_circularness
-    b = CBuffer.new(5)
+    b = TestableCBuffer.new(5)
     b.put 1 # [1,nil,nil,nil,nil]
     b.put 2 # [1,2,nil,nil,nil]
     b.put 3 # [1,2,3,nil,nil]
@@ -35,50 +41,46 @@ class TestCBuffer < Test::Unit::TestCase
     b.put 4 # [nil,2,3,4,nil]
     b.put 5 # [nil,2,3,4,5]
     b.put 6 # [6,2,3,4,5]
-    assert_raise(CBuffer::BufferFull) {
-      b.put(3)
-    }
-    b.get   # [6, nil, 3, 4, 5]
     b.put 7 # [6,7,3,4,5]
-    assert_raise(CBuffer::BufferFull) {
-      b.put(8)
-    }
+    assert_equal b.content, [6,7,3,4,5]
+    b.get   # [6,7,nil,4,5]
+    assert_equal b.content, [6,7,nil,4,5]
+    b.put 8 # [6,7,8,4,5]
+    assert_equal b.content, [6,7,8,4,5]
+    b.put 9 # [6,7,8,9,5]
+    assert(b.content == [6,7,8,9,5])
   end
 
   def test_buffer_overload
-    b = CBuffer.new(3)
-    assert_raise(CBuffer::BufferFull) {
-      b.put(1)
-      b.put(2)
-      b.put(3)
-      b.put(4)
-    }
+    b = TestableCBuffer.new(3)
+    b.put(1)
+    b.put(2)
+    b.put(3)
+    b.put(4)
+    assert_equal b.content, [4,2,3]
   end
 
   def test_buffer_overload_with_nil
-    b = CBuffer.new(3)
-    assert_raise(CBuffer::BufferFull) {
-      b.put 1
-      b.put 2
-      b.put 3
-      b.put nil
-    }
+    b = TestableCBuffer.new(3)
+    b.put 1
+    b.put 2
+    b.put 3
+    b.put nil
+    assert_equal b.content, [nil,2,3]
   end
   
   def test_clear_buffer
-    b = CBuffer.new(3)
+    b = TestableCBuffer.new(3)
     b.put(1)
     b.put(2)
     b.put(8)
-    assert_raise(CBuffer::BufferFull) {
-      b.put(nil)
-    }
+    b.put(nil)
     b.clear
     assert b.empty?
   end
 
   def test_example_used_in_readme
-    b = CBuffer.new(4)
+    b = TestableCBuffer.new(4)
     b.put({ :item => "one" })
     b.put({ :item => "two" })
     b.put({ :item => "three" })
@@ -92,7 +94,7 @@ class TestCBuffer < Test::Unit::TestCase
   end
 
   def test_again
-    b = CBuffer.new(5)
+    b = TestableCBuffer.new(5)
     assert !b.put(1)
     assert !b.put(2)
     assert !b.put(3)
@@ -114,4 +116,24 @@ class TestCBuffer < Test::Unit::TestCase
     assert_equal 3, b.get
     assert_equal 4, b.get
   end
+
+
+  def test_unget
+    b = TestableCBuffer.new(3)
+    b.put 1
+    b.put 2
+    assert_equal b.content, [1,2,nil]
+    assert_equal 1, b.get
+    assert_equal b.content, [nil,2,nil]
+    b.unget 1
+    assert_equal b.content, [1,2,nil]
+    b.put 3
+    assert_equal b.content, [1,2,3]
+    assert_equal 1, b.get
+    b.put 4
+    assert_equal b.content, [4,2,3]
+    b.unget 1
+    assert_equal b.content, [4,2,3]
+  end
+
 end
