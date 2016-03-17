@@ -1,5 +1,4 @@
 class CBuffer
-  class BufferFull < StandardError; end
 
   def initialize(capacity)
     @capacity = capacity
